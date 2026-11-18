@@ -1,5 +1,6 @@
-ValST MS EQ
-Equalizzatore parametrico Mid/Side a 3 bande - plugin VST3 per Windows (64 bit)
+ValST MS EQ - versione 1.1
+Equalizzatore parametrico Mid/Side a 3 bande con saturazione analogica
+Plugin VST3 per Windows (64 bit)
 
 
 INSTALLAZIONE (30 secondi)
@@ -14,17 +15,28 @@ INSTALLAZIONE (30 secondi)
 Non serve installare nient'altro (il plugin non richiede librerie Visual C++).
 Per rimuoverlo: doppio clic su "Disinstalla.bat".
 
+Se arrivi dalla versione 1.0: i vecchi progetti e preset si aprono e suonano come prima
+(vedi "Compatibilita'" in fondo).
+
 
 COME SI USA
 -----------
 Ogni banda (BAND 1, 2, 3) ha:
 
-  FREQ    frequenza centrale della campana, 20 Hz - 20 kHz
-  WIDTH   larghezza della campana in ottave (0.1 - 6): piu' alto = campana piu' larga
-  GAIN    guadagno della banda, da -18 a +18 dB
-  FADER   il fader Mid/Side accanto al GAIN (scala logaritmica, da -100 a +100)
+  FREQ      frequenza centrale della campana, 20 Hz - 20 kHz
+  WIDTH     larghezza della campana in ottave (0.1 - 6): piu' alto = campana piu' larga
+  GAIN      guadagno della banda, da -18 a +18 dB
+  FADER     il fader Mid/Side accanto al GAIN (scala logaritmica, da -100 a +100)
+  SAT       saturazione della banda, da 0 a 100 % (0 = spenta: la banda e' solo la campana)
+  LOW CUT   solo bande 1 e 3: filtro passa-alto, al minimo = spento
 
-Il fader decide su quale segnale lavora il pomello GAIN:
+Ai lati del grafico:
+
+  INPUT     gain di ingresso, da -12 a +24 dB, con saturazione valvolare
+  OUTPUT    gain di uscita, da -24 a +12 dB, con saturazione a trasformatore
+
+IL FADER MID/SIDE
+Il fader decide su quale segnale lavora il pomello GAIN (e anche la SAT della banda):
 
   0 (centro)      NEUTRO: il GAIN agisce sul segnale stereo, cioe' su Mid e Side insieme.
   verso +100      il GAIN agisce sul SIDE. Il Mid ne riceve sempre meno
@@ -38,18 +50,54 @@ si puo' anche digitare (es. "+40", "-75").
 Accanto al titolo di ogni banda trovi sempre il guadagno effettivo applicato a MID e SIDE.
 Il pomello GAIN cambia colore: bianco = stereo, ciano = Side, ambra = Mid.
 
+LA SATURAZIONE
+  INPUT (valvola)
+    Da -12 a 0 dB e' un'attenuazione pulita. Sopra 0 dB la valvola comincia a saturare: piu'
+    gain = piu' livello e curva piu' spinta, quindi la distorsione cresce in modo graduale,
+    con armoniche pari e dispari. Meta' dei dB in salita vengono compensati dopo la valvola,
+    cosi' il volume percepito cresce meno del gain.
+  SAT (una per banda)
+    Satura la fetta di spettro della banda; a basso livello e' trasparente.
+    - Frequenza: bande basse = curva piu' dura (aggressiva), bande alte = piu' morbida.
+    - Larghezza: bande strette = piu' dura, bande larghe = piu' morbida.
+    - Gain: piu' gain (in boost o in taglio) = piu' armoniche pari rispetto alle dispari.
+    Ogni banda ha un carattere proprio, fisso e salvato nel progetto: stessi parametri =
+    stesso suono, sempre.
+    Le bande sono in serie: la 2 elabora quello che esce dalla 1, la 3 il risultato di
+    entrambe. Cambiare l'ordine delle bande cambia il suono.
+  OUTPUT (trasformatore)
+    Gain di uscita + saturazione magnetica: trasparente fino a 0 dBFS, poi compressione
+    dolce e progressiva con armoniche dispari (non e' un limitatore). Sotto circa 100 Hz il
+    nucleo satura un po' prima (fino a 2.6 dB). Se il segnale supera 0 dBFS (anche perche'
+    INPUT, SAT e bande ne alzano il livello) abbassa OUTPUT per tornare nella zona pulita.
+  LOW CUT
+    Banda 1: passa-alto morbido, 6 dB/ottava (20 - 400 Hz), prima della saturazione della
+    banda 1. Banda 3: passa-alto un po' piu' ripido, 12 dB/ottava (20 - 1000 Hz), dopo
+    l'ultima banda. Al minimo (20 Hz) sono spenti.
+
 IL GRAFICO
-  Curva AMBRA   = risposta in frequenza del segnale MID  (somma delle 3 bande)
-  Curva CIANO   = risposta in frequenza del segnale SIDE (somma delle 3 bande)
+  Curva AMBRA   = risposta in frequenza del segnale MID  (somma delle 3 bande e dei LOW CUT)
+  Curva CIANO   = risposta in frequenza del segnale SIDE (somma delle 3 bande e dei LOW CUT)
   Se il fader e' a 0 le due curve coincidono.
+  Le linee tratteggiate verdi (LC1, LC3) sono le frequenze dei due LOW CUT.
   I tre nodi numerati sono le bande: trascinali per cambiare frequenza (orizzontale) e
   guadagno (verticale), usa la rotella del mouse sul nodo per la larghezza, doppio clic
   per azzerare il guadagno. Passando sopra un nodo (o sul pannello di una banda) vedi
-  la curva della singola banda e i valori esatti.
+  la curva della singola banda e i valori esatti, compresa la SAT.
+  La saturazione non compare nelle curve: a livelli bassi, dove una risposta in frequenza
+  ha senso, e' trasparente. INPUT e OUTPUT mostrano la curva statica del proprio stadio.
 
 Doppio clic su qualsiasi pomello o sul fader = valore predefinito.
-Tutti i parametri sono automatizzabili dal DAW. La finestra si puo' ridimensionare
-trascinando l'angolo in basso a destra.
+Tutti i parametri (19) sono automatizzabili dal DAW. La finestra si puo' ridimensionare
+trascinando l'angolo in basso a destra. Il plugin funziona in stereo e in mono.
+
+
+COMPATIBILITA' CON LA 1.0
+-------------------------
+I 12 parametri della 1.0 hanno gli stessi nomi interni e lo stesso significato: progetti,
+preset e automazioni salvati con la 1.0 si aprono e suonano come prima, finche' il segnale
+resta sotto 0 dBFS (per i bassi sotto circa 100 Hz la soglia e' fino a 2.6 dB piu' bassa).
+I controlli nuovi partono neutri: INPUT 0 dB, OUTPUT 0 dB, SAT 0 %, LOW CUT spenti.
 
 
 CODICE SORGENTE E LICENZA
@@ -57,4 +105,5 @@ CODICE SORGENTE E LICENZA
 ValST MS EQ e' software libero, rilasciato con licenza GNU AGPL v3.0 (vedi LICENSE.txt).
 Il codice sorgente completo e' disponibile su:
     https://github.com/Daniele-Felicetta/ValST
+Come funziona la saturazione (formule, misure): docs/ARCHITETTURA_SATURAZIONE.md nel repository.
 Il plugin usa il framework JUCE (https://juce.com), con licenza AGPLv3 / commerciale.

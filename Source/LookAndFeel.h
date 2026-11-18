@@ -19,6 +19,9 @@ namespace valst::ui
     inline juce::Colour sideColour()    { return juce::Colour (0xff35c6ff); }   // ciano  -> Side
     inline juce::Colour neutralColour() { return juce::Colour (0xffe9eef5); }   // bianco -> stereo (Mid + Side)
     inline juce::Colour knobAccent()    { return juce::Colour (0xffa9bad3); }
+    inline juce::Colour satColour()     { return juce::Colour (0xffff7a5c); }   // corallo -> valvola e saturazione delle bande
+    inline juce::Colour trafoColour()   { return juce::Colour (0xffb592ff); }   // viola   -> trasformatore di uscita
+    inline juce::Colour lowCutColour()  { return juce::Colour (0xff4fe0b0); }   // menta   -> filtri passa-alto
 
     /** Colore che indica su quale canale lavora il guadagno:
         bianco = stereo (fader a 0), ciano = Side (fader in alto), ambra = Mid (fader in basso). */
@@ -86,14 +89,29 @@ public:
         g.setColour (juce::Colour (0xff262c37));
         g.strokePath (track, juce::PathStrokeType (thick, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-        // arco del valore (dal centro per i pomelli bipolari, come il GAIN)
-        const float zeroAngle = bipolar ? (startAngle + endAngle) * 0.5f : startAngle;
+        // arco del valore: parte dal centro per i pomelli bipolari (come il GAIN) o da un valore neutro
+        // indicato con la proprieta' "zeroValue" (es. 0 dB sul gain di ingresso, che va da -12 a +24)
+        float zeroPos = bipolar ? 0.5f : 0.0f;
+        const bool hasZeroMark = slider.getProperties().contains ("zeroValue");
+        if (hasZeroMark)
+            zeroPos = (float) slider.valueToProportionOfLength ((double) slider.getProperties().getWithDefault ("zeroValue", 0.0));
+
+        const float zeroAngle = startAngle + zeroPos * (endAngle - startAngle);
         if (std::abs (angle - zeroAngle) > 0.002f)
         {
             juce::Path value;
             value.addCentredArc (centre.x, centre.y, arcR, arcR, 0.0f, zeroAngle, angle, true);
             g.setColour (accent);
             g.strokePath (value, juce::PathStrokeType (thick, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        }
+
+        if (hasZeroMark)    // tacca del valore neutro
+        {
+            juce::Path tick;
+            tick.startNewSubPath (centre.x + (arcR - thick * 0.9f) * std::sin (zeroAngle), centre.y - (arcR - thick * 0.9f) * std::cos (zeroAngle));
+            tick.lineTo          (centre.x + (arcR + thick * 0.9f) * std::sin (zeroAngle), centre.y - (arcR + thick * 0.9f) * std::cos (zeroAngle));
+            g.setColour (neutralColour().withAlpha (0.8f));
+            g.strokePath (tick, juce::PathStrokeType (1.5f));
         }
 
         // lancetta

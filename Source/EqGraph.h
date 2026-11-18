@@ -8,14 +8,16 @@
 //==============================================================================
 /** Rappresentazione grafica dell'EQ.
 
-    - curva ambra  = risposta in frequenza del segnale MID   (somma delle 3 bande)
-    - curva ciano  = risposta in frequenza del segnale SIDE  (somma delle 3 bande)
+    - curva ambra  = risposta in frequenza del segnale MID   (somma delle 3 bande + passa-alto)
+    - curva ciano  = risposta in frequenza del segnale SIDE  (somma delle 3 bande + passa-alto)
     - un nodo per banda, trascinabile: orizzontale = frequenza, verticale = guadagno;
       rotella del mouse = larghezza; doppio clic = azzera il guadagno.
     - passando sopra un nodo (o sul pannello di una banda) vengono evidenziate le curve
       della singola banda e i valori effettivi su Mid e Side.
+    - una linea tratteggiata menta segna la frequenza di taglio di ciascun passa-alto attivo.
 
-    Le curve sono calcolate con gli stessi coefficienti usati dall'audio. */
+    Le curve sono calcolate con gli stessi coefficienti usati dall'audio (valst::LinearResponse).
+    La saturazione non e' disegnata: a livelli bassi, dove una curva di risposta ha senso, e' trasparente. */
 class EqGraph : public juce::Component,
                 public juce::SettableTooltipClient
 {
@@ -45,7 +47,7 @@ public:
 private:
     struct BandValues
     {
-        float freq = 1000.0f, width = 1.0f, gainDb = 0.0f, ms = 0.0f;
+        float freq = 1000.0f, width = 1.0f, gainDb = 0.0f, ms = 0.0f, satPercent = 0.0f;
     };
 
     BandValues readBand (int band) const;
@@ -65,6 +67,7 @@ private:
     void drawGrid (juce::Graphics&) const;
     void drawCurve (juce::Graphics&, const std::vector<float>& db, juce::Colour, float thickness, float fillAlpha) const;
     void drawNodes (juce::Graphics&, const std::array<BandValues, (size_t) valst::numBands>&) const;
+    void drawLowCuts (juce::Graphics&, float hpf1Hz, float hpf3Hz) const;
     void drawInfo (juce::Graphics&, int band, const BandValues&) const;
     void drawLegend (juce::Graphics&) const;
 
@@ -73,7 +76,8 @@ private:
 
     int hoverBand = -1, dragBand = -1, externalBand = -1;
     juce::Point<float> dragOffset;
-    std::array<float, 13> lastValues {};
+    // freq, larghezza, gain, fader (x3 bande) + 2 passa-alto + frequenza di campionamento
+    std::array<float, valst::numBands * 4 + 3> lastValues {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EqGraph)
 };

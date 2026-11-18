@@ -9,20 +9,6 @@ namespace
     constexpr float dbRange    = 24.0f;    // il grafico copre +/-24 dB
     constexpr float nodeRadius = 9.0f;
     constexpr float hitRadius  = 16.0f;
-
-    struct BandFilters
-    {
-        Biquad mid, side;
-    };
-
-    BandFilters makeFilters (float freq, float width, float gainDb, float ms, double sampleRate)
-    {
-        const auto g = computeBandGains (gainDb, ms);
-        BandFilters f;
-        f.mid .setPeaking (sampleRate, freq, width, g.midDb);
-        f.side.setPeaking (sampleRate, freq, width, g.sideDb);
-        return f;
-    }
 }
 
 //==============================================================================
@@ -31,16 +17,19 @@ EqGraph::EqGraph (ValstMsEqProcessor& p) : proc (p)
     setTooltip (it ("Trascina i nodi: orizzontale = frequenza, verticale = guadagno.\n"
                     "Rotella del mouse su un nodo: larghezza della campana.\n"
                     "Doppio clic su un nodo: azzera il guadagno.\n"
-                    "Curva ambra = segnale Mid, curva ciano = segnale Side."));
+                    "Curva ambra = segnale Mid, curva ciano = segnale Side (campane + filtri passa-alto).\n"
+                    "Linea tratteggiata menta = frequenza di taglio di un passa-alto attivo.\n"
+                    "La saturazione non cambia le curve: a livelli bassi è trasparente."));
 }
 
 EqGraph::BandValues EqGraph::readBand (int band) const
 {
     BandValues v;
-    v.freq   = proc.getParam (band, kFreq);
-    v.width  = proc.getParam (band, kWidth);
-    v.gainDb = proc.getParam (band, kGain);
-    v.ms     = proc.getParam (band, kMs);
+    v.freq       = proc.getParam (band, kFreq);
+    v.width      = proc.getParam (band, kWidth);
+    v.gainDb     = proc.getParam (band, kGain);
+    v.ms         = proc.getParam (band, kMs);
+    v.satPercent = proc.getParam (band, kSat);
     return v;
 }
 
@@ -96,14 +85,16 @@ void EqGraph::resized()
 
 void EqGraph::refresh()
 {
-    std::array<float, 13> now {};
+    std::array<float, numBands * 4 + 3> now {};
     size_t i = 0;
 
     for (int b = 0; b < numBands; ++b)
-        for (int k = 0; k < 4; ++k)
+        for (int k : { (int) kFreq, (int) kWidth, (int) kGain, (int) kMs })        // la saturazione non cambia le curve
             now[i++] = proc.getParam (b, (ParamKind) k);
 
-    now[i] = (float) proc.getSampleRate();
+    now[i++] = proc.getGlobal (kHpf1);
+    now[i++] = proc.getGlobal (kHpf3);
+    now[i]   = (float) proc.getSampleRate();
 
     if (now != lastValues)
     {
@@ -127,14 +118,19 @@ void EqGraph::paint (juce::Graphics& g)
 
     const double sampleRate = proc.getSampleRate() > 0.0 ? proc.getSampleRate() : 48000.0;
 
-    std::array<BandValues, (size_t) numBands>  bands;
-    std::array<BandFilters, (size_t) numBands> filters;
+    std::array<BandValues, (size_t) numBands> bands;
+    std::array<LinearResponse::BandSetting, (size_t) numBands> settings;
 
     for (size_t b = 0; b < (size_t) numBands; ++b)
     {
-        bands[b]   = readBand ((int) b);
-        filters[b] = makeFilters (bands[b].freq, bands[b].width, bands[b].gainDb, bands[b].ms, sampleRate);
+        bands[b]    = readBand ((int) b);
+        settings[b] = { bands[b].freq, bands[b].width, bands[b].gainDb, bands[b].ms };
     }
+
+    const float hpf1 = proc.getGlobal (kHpf1), hpf3 = proc.getGlobal (kHpf3);
+
+    LinearResponse response;
+    response.setup (sampleRate, settings, hpf1, hpf3);
 
     drawGrid (g);
 
@@ -152,15 +148,19 @@ void EqGraph::paint (juce::Graphics& g)
         {
             const double f = (double) freqMin * std::pow ((double) (freqMax / freqMin), (double) i / (double) (n - 1));
 
-            for (size_t b = 0; b < (size_t) numBands; ++b)
+            const float highPass = (float) response.highPassDb (f);      // uguale per Mid e Side
+            sumMid[(size_t) i]  = highPass;
+            sumSide[(size_t) i] = highPass;
+
+            for (int b = 0; b < numBands; ++b)
             {
-                const float dm = (float) filters[b].mid .magnitudeDb (f, sampleRate);
-                const float ds = (float) filters[b].side.magnitudeDb (f, sampleRate);
+                const float dm = (float) response.bandDb (b, false, f);
+                const float ds = (float) response.bandDb (b, true,  f);
 
                 sumMid[(size_t) i]  += dm;
                 sumSide[(size_t) i] += ds;
 
-                if ((int) b == highlighted)
+                if (b == highlighted)
                 {
                     bandMid[(size_t) i]  = dm;
                     bandSide[(size_t) i] = ds;
@@ -178,6 +178,7 @@ void EqGraph::paint (juce::Graphics& g)
         drawCurve (g, sumSide, sideColour(), 1.8f, 0.10f);
     }
 
+    drawLowCuts (g, hpf1, hpf3);
     drawNodes (g, bands);
     drawLegend (g);
 
@@ -285,6 +286,37 @@ void EqGraph::drawNodes (juce::Graphics& g, const std::array<BandValues, (size_t
     }
 }
 
+void EqGraph::drawLowCuts (juce::Graphics& g, float hpf1Hz, float hpf3Hz) const
+{
+    struct Item { float hz; const char* name; int row; };
+    const Item items[] = { { hpf1Hz, "LC1", 0 }, { hpf3Hz, "LC3", 1 } };
+
+    g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
+
+    for (const auto& item : items)
+    {
+        if (item.hz <= hpfOffThresholdHz)
+            continue;
+
+        const float x = freqToX (item.hz);
+        const float dashes[] = { 4.0f, 4.0f };
+
+        g.setColour (lowCutColour().withAlpha (0.60f));
+        g.drawDashedLine (juce::Line<float> (x, plot.getY(), x, plot.getBottom()), dashes, 2, 1.2f);
+
+        // etichetta vicino alla linea, in basso (le due righe non si sovrappongono)
+        const juce::String text = juce::String (item.name) + " " + hpfToText (item.hz);
+        const float w = 70.0f, h = 15.0f;
+        const float y = plot.getBottom() - 20.0f - (float) item.row * 19.0f;
+        const float x0 = (x + 5.0f + w <= plot.getRight()) ? x + 5.0f : x - 5.0f - w;
+
+        g.setColour (juce::Colour (0xcc0d1014));
+        g.fillRoundedRectangle (x0, y, w, h, 4.0f);
+        g.setColour (lowCutColour());
+        g.drawText (text, juce::Rectangle<float> (x0, y, w, h), juce::Justification::centred, false);
+    }
+}
+
 void EqGraph::drawLegend (juce::Graphics& g) const
 {
     g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
@@ -316,6 +348,8 @@ void EqGraph::drawInfo (juce::Graphics& g, int band, const BandValues& v) const
     text.append ("BAND " + juce::String (band + 1) + "    ",                                                   bold,   textColour());
     text.append (freqToText (v.freq) + "    " + gainToText (v.gainDb) + "    ",                                normal, textColour());
     text.append ("W " + widthToText (v.width) + " (Q " + juce::String (widthToQ (v.width), 2) + ")    ",        normal, dimTextColour());
+    if (v.satPercent >= 0.5f)
+        text.append ("SAT " + satToText (v.satPercent) + "    ",                                               bold,   satColour());
     text.append ("MID " + gainToText ((float) gains.midDb) + "    ",                                           bold,   midColour());
     text.append ("SIDE " + gainToText ((float) gains.sideDb),                                                  bold,   sideColour());
 

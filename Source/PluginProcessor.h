@@ -3,8 +3,10 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <array>
 #include <atomic>
+#include <vector>
 #include "MsEqDsp.h"
 #include "Params.h"
+#include "Saturation.h"
 
 class ValstMsEqProcessor : public juce::AudioProcessor
 {
@@ -35,19 +37,36 @@ public:
     void getStateInformation (juce::MemoryBlock&) override;
     void setStateInformation (const void*, int) override;
 
-    /** Valori "reali" correnti dei parametri di una banda (thread-safe, atomici). */
+    /** Valori "reali" correnti dei parametri di una banda (thread-safe, atomici). kSat e' in percentuale. */
     float getParam (int band, valst::ParamKind kind) const noexcept
     {
         return params[(size_t) band][(size_t) kind]->load();
     }
 
+    /** Valori "reali" correnti dei parametri globali (gain di ingresso/uscita in dB, passa-alto in Hz). */
+    float getGlobal (valst::GlobalParam p) const noexcept
+    {
+        return globals[(size_t) p]->load();
+    }
+
+    /** Seed persistente dell'identita' timbrica della saturazione di una banda. */
+    uint64_t getSeed (int band) const noexcept { return seeds[(size_t) band].load(); }
+
+    /** Imposta il seed di una banda (e lo scrive nello stato, cosi' viene salvato con il progetto). */
+    void setSeed (int band, uint64_t seed);
+
     juce::AudioProcessorValueTreeState apvts;
 
 private:
     void pushParametersToEngine();
+    void writeSeedsToState();
+    void readSeedsFromState();
 
     valst::MsEqEngine engine;
-    std::array<std::array<std::atomic<float>*, 4>, (size_t) valst::numBands> params {};
+    std::array<std::array<std::atomic<float>*, (size_t) valst::numBandParams>, (size_t) valst::numBands> params {};
+    std::array<std::atomic<float>*, (size_t) valst::numGlobalParams> globals {};
+    std::array<std::atomic<uint64_t>, (size_t) valst::numBands> seeds {};
+    std::vector<float> monoScratch;          // canale destro fittizio per l'elaborazione mono (preallocato)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ValstMsEqProcessor)
 };

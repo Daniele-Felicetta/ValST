@@ -13,6 +13,17 @@
 //             0 = neutro (il gain lavora sul segnale stereo, cioe' su Mid e Side insieme).
 //             La corsa del fader e' logaritmica: precisione fine intorno allo 0,
 //             variazioni piu' rapide verso gli estremi.
+//     sat   : (dalla 1.1) saturazione della banda, 0 - 100 %. 0 = spenta.
+//
+//  Parametri globali (dalla 1.1):
+//     in_gain   : gain di ingresso con saturazione valvolare, -12 / +24 dB
+//     out_gain  : gain di uscita con saturazione a trasformatore, -24 / +12 dB
+//     hpf1_freq : passa-alto morbido (6 dB/ott) della banda 1, 20 - 400 Hz (il minimo = spento)
+//     hpf3_freq : passa-alto piu' ripido (12 dB/ott) della banda 3, 20 - 1000 Hz (il minimo = spento)
+//
+//  I parametri della 1.0 hanno gli stessi ID, lo stesso significato e lo stesso ordine; quelli nuovi
+//  sono accodati e hanno un valore predefinito neutro, quindi i preset e le automazioni vecchi
+//  continuano a funzionare senza cambiare suono.
 //==============================================================================
 namespace valst
 {
@@ -24,12 +35,31 @@ namespace valst
     constexpr float gainMaxDb = 18.0f;
     constexpr float msMax     = 100.0f;
 
-    enum ParamKind { kFreq = 0, kWidth, kGain, kMs };
+    constexpr float inGainMinDb  = -12.0f;
+    constexpr float inGainMaxDb  = 24.0f;
+    constexpr float outGainMinDb = -24.0f;
+    constexpr float outGainMaxDb = 12.0f;
+    constexpr float satMaxPercent = 100.0f;
+
+    constexpr float hpfMinHz          = 20.0f;
+    constexpr float hpfOffThresholdHz = 20.5f;     // <= : filtro spento
+    constexpr float hpf1MaxHz         = 400.0f;
+    constexpr float hpf3MaxHz         = 1000.0f;
+
+    enum ParamKind { kFreq = 0, kWidth, kGain, kMs, kSat, numBandParams };
 
     inline juce::String paramId (int band, ParamKind kind)
     {
-        static const char* const suffix[] = { "freq", "width", "gain", "ms" };
+        static const char* const suffix[] = { "freq", "width", "gain", "ms", "sat" };
         return "b" + juce::String (band + 1) + "_" + suffix[(int) kind];
+    }
+
+    enum GlobalParam { kInGain = 0, kOutGain, kHpf1, kHpf3, numGlobalParams };
+
+    inline juce::String globalId (GlobalParam p)
+    {
+        static const char* const ids[] = { "in_gain", "out_gain", "hpf1_freq", "hpf3_freq" };
+        return ids[(int) p];
     }
 
     /** Q equivalente di una larghezza espressa in ottave (usato solo per la visualizzazione). */
@@ -120,6 +150,18 @@ namespace valst
         return "0";
     }
 
+    inline juce::String satToText (float percent)  { return juce::String (juce::roundToInt (percent)) + " %"; }
+
+    inline juce::String hpfToText (float hz)       { return hz <= hpfOffThresholdHz ? juce::String ("OFF") : freqToText (hz); }
+
+    inline float textToHpf (const juce::String& text)
+    {
+        const auto t = text.trim().toLowerCase();
+        if (t.isEmpty() || t.startsWith ("off"))
+            return hpfMinHz;
+        return textToFreq (t);
+    }
+
     //==============================================================================
     inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     {
@@ -171,6 +213,44 @@ namespace valst
                         return v;
                     })));
         }
+
+        //----------------------------------------------------------------------
+        //  Dalla 1.1: parametri accodati (ID nuovi, versione 2), tutti con valore predefinito neutro.
+        const auto gainAttributes = [] (const char* label)
+        {
+            return AudioParameterFloatAttributes()
+                       .withLabel (label)
+                       .withStringFromValueFunction ([] (float v, int) { return gainToText (v); })
+                       .withValueFromStringFunction ([] (const String& s) { return s.getFloatValue(); });
+        };
+
+        layout.add (std::make_unique<AudioParameterFloat> (
+            ParameterID { globalId (kInGain), 2 }, "Input Gain",
+            juce::NormalisableRange<float> (inGainMinDb, inGainMaxDb, 0.1f), 0.0f, gainAttributes ("dB")));
+
+        layout.add (std::make_unique<AudioParameterFloat> (
+            ParameterID { globalId (kOutGain), 2 }, "Output Gain",
+            juce::NormalisableRange<float> (outGainMinDb, outGainMaxDb, 0.1f), 0.0f, gainAttributes ("dB")));
+
+        for (int b = 0; b < numBands; ++b)
+            layout.add (std::make_unique<AudioParameterFloat> (
+                ParameterID { paramId (b, kSat), 2 }, "Band " + String (b + 1) + " Saturation",
+                juce::NormalisableRange<float> (0.0f, satMaxPercent, 1.0f), 0.0f,
+                AudioParameterFloatAttributes()
+                    .withLabel ("%")
+                    .withStringFromValueFunction ([] (float v, int) { return satToText (v); })
+                    .withValueFromStringFunction ([] (const String& s) { return s.getFloatValue(); })));
+
+        const auto hpfAttributes = AudioParameterFloatAttributes()
+                                       .withLabel ("Hz")
+                                       .withStringFromValueFunction ([] (float v, int) { return hpfToText (v); })
+                                       .withValueFromStringFunction ([] (const String& s) { return textToHpf (s); });
+
+        layout.add (std::make_unique<AudioParameterFloat> (
+            ParameterID { globalId (kHpf1), 2 }, "Band 1 Low Cut", logRange (hpfMinHz, hpf1MaxHz), hpfMinHz, hpfAttributes));
+
+        layout.add (std::make_unique<AudioParameterFloat> (
+            ParameterID { globalId (kHpf3), 2 }, "Band 3 Low Cut", logRange (hpfMinHz, hpf3MaxHz), hpfMinHz, hpfAttributes));
 
         return layout;
     }
