@@ -1,0 +1,5 @@
+# Fine riga normalizzati nel repository (LF); gli script e i testi per Windows restano CRLF dopo il checkout
+* text=auto
+*.bat text eol=crlf
+Installer/*.txt text eol=crlf
+*.png binary

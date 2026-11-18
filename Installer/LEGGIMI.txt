@@ -1,0 +1,60 @@
+ValST MS EQ
+Equalizzatore parametrico Mid/Side a 3 bande - plugin VST3 per Windows (64 bit)
+
+
+INSTALLAZIONE (30 secondi)
+--------------------------
+1. Chiudi il DAW.
+2. Fai doppio clic su "Installa.bat" e conferma la richiesta di Windows.
+   (Servono i permessi di amministratore: il plugin viene copiato in
+    C:\Program Files\Common Files\VST3, la cartella standard dei VST3.)
+3. Apri il DAW. ValST MS EQ compare tra gli effetti VST3.
+   Se non lo vedi, fai una nuova scansione dei plugin VST3 nelle impostazioni del DAW.
+
+Non serve installare nient'altro (il plugin non richiede librerie Visual C++).
+Per rimuoverlo: doppio clic su "Disinstalla.bat".
+
+
+COME SI USA
+-----------
+Ogni banda (BAND 1, 2, 3) ha:
+
+  FREQ    frequenza centrale della campana, 20 Hz - 20 kHz
+  WIDTH   larghezza della campana in ottave (0.1 - 6): piu' alto = campana piu' larga
+  GAIN    guadagno della banda, da -18 a +18 dB
+  FADER   il fader Mid/Side accanto al GAIN (scala logaritmica, da -100 a +100)
+
+Il fader decide su quale segnale lavora il pomello GAIN:
+
+  0 (centro)      NEUTRO: il GAIN agisce sul segnale stereo, cioe' su Mid e Side insieme.
+  verso +100      il GAIN agisce sul SIDE. Il Mid ne riceve sempre meno
+                  e a +100 resta invariato.
+  verso -100      il GAIN agisce sul MID. Il Side ne riceve sempre meno
+                  e a -100 resta invariato.
+
+La corsa del fader e' logaritmica: intorno allo 0 la regolazione e' fine (molta corsa per
+pochi punti), verso gli estremi i valori cambiano piu' rapidamente. Il numero sotto il fader
+si puo' anche digitare (es. "+40", "-75").
+Accanto al titolo di ogni banda trovi sempre il guadagno effettivo applicato a MID e SIDE.
+Il pomello GAIN cambia colore: bianco = stereo, ciano = Side, ambra = Mid.
+
+IL GRAFICO
+  Curva AMBRA   = risposta in frequenza del segnale MID  (somma delle 3 bande)
+  Curva CIANO   = risposta in frequenza del segnale SIDE (somma delle 3 bande)
+  Se il fader e' a 0 le due curve coincidono.
+  I tre nodi numerati sono le bande: trascinali per cambiare frequenza (orizzontale) e
+  guadagno (verticale), usa la rotella del mouse sul nodo per la larghezza, doppio clic
+  per azzerare il guadagno. Passando sopra un nodo (o sul pannello di una banda) vedi
+  la curva della singola banda e i valori esatti.
+
+Doppio clic su qualsiasi pomello o sul fader = valore predefinito.
+Tutti i parametri sono automatizzabili dal DAW. La finestra si puo' ridimensionare
+trascinando l'angolo in basso a destra.
+
+
+CODICE SORGENTE E LICENZA
+-------------------------
+ValST MS EQ e' software libero, rilasciato con licenza GNU AGPL v3.0 (vedi LICENSE.txt).
+Il codice sorgente completo e' disponibile su:
+    https://github.com/Daniele-Felicetta/ValST
+Il plugin usa il framework JUCE (https://juce.com), con licenza AGPLv3 / commerciale.

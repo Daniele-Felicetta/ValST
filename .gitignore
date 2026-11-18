@@ -1,0 +1,9 @@
+# generati dalla compilazione (build.bat li ricrea)
+build/
+dist/
+release/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
